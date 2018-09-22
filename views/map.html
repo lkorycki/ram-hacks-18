@@ -5,6 +5,7 @@
     <script src="https://unpkg.com/deck.gl@^6.0.0/deckgl.min.js"></script>
     <script src="https://d3js.org/d3.v5.min.js"></script>
     <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v0.44.1/mapbox-gl.js"></script>
+    <script type = "text/javascript" src = "https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
 
     <style type="text/css">
         body {
@@ -105,23 +106,15 @@
         const hexagonLayer = new HexagonLayer({
             id: 'heatmap',
             colorRange: COLOR_RANGE,
-            getColorValue: points => {
-                const v = points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length;
-                console.log(v);
-                return v;
-            },
-            getElevationValue: points => {
-                const v = points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length;
-                console.log(v);
-                return v;
-            },
+            getColorValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
+            getElevationValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
             data,
             elevationRange: [0, 1000],
             elevationScale: 250,
-            extruded: true,
+            extruded: false,
             getPosition: d => d.coordinates,
             lightSettings: LIGHT_SETTINGS,
-            opacity: 1,
+            opacity: 0.1,
             pickable: true,
             onHover: info => console.log('Hovered:', info),
             ...options
@@ -132,11 +125,28 @@
         });
     }
 
-    // d3.csv('https://raw.githubusercontent.com/uber-common/deck.gl-data/master/examples/3d-heatmap/heatmap-data.csv')
-    //     .then(response => {
-    //         data = response.map(d => [Number(d.lng), Number(d.lat)]);
-    //         renderLayer();
-    //     });
+    function processData(rawData) {
+        return rawData.filter((d) => (d.longitude != null) && (d.latitude != null) && (d.WAGE_RATE_OF_PAY_FROM != null))
+            .map((d) => {
+                return {
+                    coordinates: [Number(d.longitude), Number(d.latitude)],
+                    wage: d.WAGE_RATE_OF_PAY_FROM
+                };
+            });
+    }
+
+    console.log('Sending request');
+    $.ajax({
+        url: 'http://104.251.219.173:5000/api/MA/100000',
+        type: 'GET',
+        crossDomain: true,
+        dataType: 'json',
+        success: function(rawData) {
+            data = processData(rawData);
+            renderLayer();
+        },
+        error: function(e) { alert('Failed! ' + JSON.stringify(e)); }
+    });
 
     const dataMock = [
         {
@@ -10141,16 +10151,8 @@
         }
     ];
 
-    data = dataMock
-        .filter((d) => (d.longitude != null) && (d.latitude != null) && (d.WAGE_RATE_OF_PAY_FROM != null))
-        .map((d) => {
-            return {
-                coordinates: [Number(d.longitude), Number(d.latitude)],
-                wage: d.WAGE_RATE_OF_PAY_FROM
-            };
-        });
-    console.log(data.length);
-    renderLayer();
+    //data = processData(mockData);
+    //renderLayer();
 
 </script>
 </html>
