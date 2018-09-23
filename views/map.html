@@ -1,6 +1,6 @@
 <html>
 <head>
-    <title>deck.gl HexagonLayer Example</title>
+    <title>Visa Jobs</title>
 
     <script src="https://unpkg.com/deck.gl@^6.0.0/deckgl.min.js"></script>
     <script src="https://d3js.org/d3.v5.min.js"></script>
@@ -30,7 +30,7 @@
 
         label {
             display: inline-block;
-            width: 50px;
+            width: 60px;
             text-align: left;
         }
 
@@ -57,6 +57,10 @@
         .button:active {
             background-color: #545454;
             transform: translateY(2px);
+        }
+
+        .select {
+            width:150px;
         }
 
         #tooltip:empty {
@@ -111,16 +115,16 @@
         <span id="upperPercentile-value"></span>
     </div>
     <div>
-        <label>State:</label> <input id="state" type="text" name="State" value="MA"><br>
-        <label>City:</label>  <input id="city" type="text" name="City" value="Boston"><br>
-        <label>Job:</label>   <input id="job" type="text" name="Job" value="Software Engineer"><br>
+        <label>State:</label><select id="state" class="select"></select><br>
+        <label>Domain:</label><select id="domain" class="select" onchange="selectUpdate()"></select><br>
+        <label>Job:</label><select id="job" class="select"></select><br>
+        <label>Company:</label><select id="company" class="select"></select><br>
         <input id="bt" type="button" class="button" value="Refresh">
     </div>
 </div>
 </body>
-
+<script src="js/selectData.js"></script>
 <script type="text/javascript">
-
     const {DeckGL, HexagonLayer} = deck;
 
     const deckgl = new DeckGL({
@@ -148,11 +152,11 @@
     ];
 
     const LIGHT_SETTINGS = {
-        lightsPosition: [-0.144528, 49.739968, 8000, -3.807751, 54.104682, 8000],
-        ambientRatio: 0.4,
-        diffuseRatio: 0.6,
-        specularRatio: 0.2,
-        lightsStrength: [0.8, 0.0, 0.8, 0.0],
+        lightsPosition: [-120, 30, 5000, -110, 20, 8000],
+        ambientRatio: 0.2,
+        diffuseRatio: 0.5,
+        specularRatio: 0.3,
+        lightsStrength: [1.0, 0.0, 2.0, 0.0],
         numberOfLights: 2
     };
 
@@ -175,7 +179,7 @@
             getElevationValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
             data,
             elevationRange: [0, 1000],
-            elevationScale: 10,
+            elevationScale: 50,
             extruded: false,
             getPosition: d => d.coordinates,
             lightSettings: LIGHT_SETTINGS,
@@ -196,27 +200,31 @@
         if (info.object) {
             tooltip.style.top = `${info.y}px`;
             tooltip.style.left = `${info.x}px`;
-            tooltip.innerHTML = `\n<div><b>Average salary:</b></div>\n<div><div><center>$${Math.round(info.object.colorValue)}</center></div></div>\n`;
+            tooltip.innerHTML = `\n<div><b>${info.object.points[0].city}${info.object.points[0].zip}</b></div>\n<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>\n`;
         } else {
             tooltip.innerHTML = '';
         }
     }
 
     function processData(rawData) {
-        return rawData.filter((d) => (d.longitude != null) && (d.latitude != null) && (d.WAGE_RATE_OF_PAY_FROM != null))
+        return rawData.filter((d) => (d.longitude != null) && (d.latitude != null) && (d.average_salary != null))
             .map((d) => {
+                //console.log(JSON.stringify(d));
                 return {
                     coordinates: [Number(d.longitude), Number(d.latitude)],
-                    wage: d.WAGE_RATE_OF_PAY_FROM
+                    wage: d.average_salary,
+                    city: d._id,
+                    zip: d.zip_code
                 };
             });
     }
 
-    function sendRequestAndUpdate(state, city, job) {
-        console.log('Sending request');
+    function sendRequestAndUpdate(state, code, company) {
+        const url = 'http://104.251.219.173:5000/api/'+ state + "/" + code;
+        console.log('Sending request for: ' + url);
         show('loading', true);
         $.ajax({
-            url: 'http://104.251.219.173:5000/api/' + state + '/100000',
+            url: url,
             type: 'GET',
             crossDomain: true,
             dataType: 'json',
@@ -231,18 +239,61 @@
         });
     }
 
-    sendRequestAndUpdate('MA', 'Boston', 'Software Engineer');
+    //show('loading', false);
+    sendRequestAndUpdate('VA', getSOC('Computer and Mathematical Occupations', null), null);
 
     function show(id, value) {
         document.getElementById(id).style.display = value ? 'block' : 'none';
     }
 
     document.getElementById("bt").onclick = function() {
-        const state = document.getElementById("state").value;
-        const city = document.getElementById("city").value;
-        const job = document.getElementById("job").value;
-        sendRequestAndUpdate(state, city, job);
+        const state = getTextFromSelect("state");
+        const domain = getTextFromSelect("domain");
+        const job = getTextFromSelect("job");
+        const company = getTextFromSelect("company");
+
+        sendRequestAndUpdate(state, getSOC(domain, job), company);
     };
+
+    let domainSelect = document.getElementById("domain");
+    const fields = getFields();
+    domainSelect.options[0] = new Option('All', 0);
+    domainSelect.selectedIndex = 0;
+    for(const field in fields) {
+        domainSelect.options[domainSelect.options.length] = new Option(fields[field], field);
+    }
+
+    let stateSelect = document.getElementById("state");
+    const states = getStates();
+    for(const state in states) {
+        stateSelect.options[stateSelect.options.length] = new Option(states[state], state);
+    }
+    stateSelect.selectedIndex = 0;
+
+    function selectUpdate() {
+        let field = getTextFromSelect("domain");
+
+        let jobSelect = document.getElementById("job");
+        for(let i = 0; i < jobSelect.options.length; i++) {
+            jobSelect.options[i].remove();
+        }
+
+        jobSelect.options = [];
+        jobSelect.options[0] = new Option('All', 0);
+        jobSelect.selectedIndex = 0;
+
+        const jobs = getFieldJobs(field);
+        for(let i = 0; i < jobs.length; i++) {
+            jobSelect.options[i+1] = new Option(jobs[i], i+1);
+        }
+    }
+
+    function getTextFromSelect(name) {
+        let select = document.getElementById(name);
+        if (select.selectedIndex === -1) return null;
+        return select.options[select.selectedIndex].text;
+    }
+
 
 </script>
 </html>
