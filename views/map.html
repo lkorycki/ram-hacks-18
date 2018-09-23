@@ -118,7 +118,11 @@
         <label>State:</label><select id="state" class="select"></select><br>
         <label>Domain:</label><select id="domain" class="select" onchange="selectUpdate()"></select><br>
         <label>Job:</label><select id="job" class="select"></select><br>
-        <label>Company:</label><select id="company" class="select"></select><br>
+        <label>Company:</label><select id="company" class="select"></select><br><br>
+        <label>Average:</label><label id="avg">-</label><br>
+        <label>Maximum:</label><label id="max">-</label><br>
+        <label>Minimum:</label><label id="min">-</label><br>
+        <label>Count:</label><label id="count">-</label><br>
         <input id="bt" type="button" class="button" value="Refresh">
     </div>
 </div>
@@ -200,7 +204,7 @@
         if (info.object) {
             tooltip.style.top = `${info.y}px`;
             tooltip.style.left = `${info.x}px`;
-            tooltip.innerHTML = `\n<div><b>${info.object.points[0].city}${info.object.points[0].zip}</b></div>\n<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>\n`;
+            tooltip.innerHTML = `\n<div><b>${info.object.points[0].city}</b></div>\n<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>\n`;
         } else {
             tooltip.innerHTML = '';
         }
@@ -213,30 +217,52 @@
                 return {
                     coordinates: [Number(d.longitude), Number(d.latitude)],
                     wage: d.average_salary,
-                    city: d._id,
-                    zip: d.zip_code
+                    city: d._id
                 };
             });
     }
 
-    function sendRequestAndUpdate(state, code, company) {
-        const url = 'http://104.251.219.173:5000/api/'+ state + "/" + code;
-        console.log('Sending request for: ' + url);
-        show('loading', true);
-        $.ajax({
-            url: url,
-            type: 'GET',
-            crossDomain: true,
-            dataType: 'json',
-            success: function(rawData) {
-                console.log('Data received');
-                data = processData(rawData);
-                renderLayer();
-                console.log('Updated');
-                show('loading', false);
-            },
-            error: function(e) { alert('Failed! ' + JSON.stringify(e)); }
+    function updateStatistics(processedData) {
+        let sum = 0, min = Number.MAX_VALUE, max = Number.MIN_VALUE, count = 0;
+
+        processedData.forEach(dp => {
+            sum += dp.wage;
+            if (dp.wage < min) min = dp.wage;
+            if (dp.wage > max) max = dp.wage;
+            count++;
         });
+
+        const avg = sum / count;
+        document.getElementById('avg').textContent = `$${Math.round(avg)}`;
+        document.getElementById('max').textContent = `$${Math.round(max)}`;
+        document.getElementById('min').textContent = `$${Math.round(min)}`;
+        document.getElementById('count').textContent = `${count}`;
+    }
+
+
+    function sendRequestAndUpdate(state, code, company) {
+        if (company === null) {
+            const url = 'http://104.251.219.173:5000/api/'+ state + "/" + code;
+            console.log('Sending request for: ' + url);
+            show('loading', true);
+            $.ajax({
+                url: url,
+                type: 'GET',
+                crossDomain: true,
+                dataType: 'json',
+                success: function(rawData) {
+                    console.log('Data received');
+                    data = processData(rawData);
+                    renderLayer();
+                    updateStatistics(data);
+                    console.log('Updated');
+                    show('loading', false);
+                },
+                error: function(e) { alert('Failed! ' + JSON.stringify(e)); }
+            });
+        } else {
+
+        }
     }
 
     //show('loading', false);
@@ -293,7 +319,5 @@
         if (select.selectedIndex === -1) return null;
         return select.options[select.selectedIndex].text;
     }
-
-
 </script>
 </html>
