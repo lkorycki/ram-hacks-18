@@ -77,31 +77,16 @@
 
         #tooltip {
              font-family: Helvetica, Arial, sans-serif;
-             font-size: 11px;
+             font-size: 12px;
              position: absolute;
              padding: 4px;
              margin: 8px;
              background: rgba(0, 0, 0, 0.8);
              color: #fff;
-             max-width: 300px;
-             font-size: 10px;
+             max-width: 500px;
              z-index: 9;
              pointer-events: none;
          }
-
-        #tooltipClick {
-            font-family: Helvetica, Arial, sans-serif;
-            font-size: 11px;
-            position: absolute;
-            padding: 4px;
-            margin: 8px;
-            background: rgba(0, 0, 0, 0.8);
-            color: #fff;
-            max-width: 300px;
-            font-size: 10px;
-            z-index: 9;
-            pointer-events: none;
-        }
 
         #loading {
             display: block;
@@ -117,6 +102,11 @@
             background-position: center;
         }
 
+        .right
+        {
+            float: right;
+        }
+
     </style>
 </head>
 
@@ -128,28 +118,19 @@
 <div id="loading"></div>
 <div id="control-panel">
     <div>
-        <label>Radius</label>
-        <div class="slider"><input id="radius" type="range" min="1000" max="20000" step="1000" value="5000"></input></div>
+        <label>Radius</label><div class="slider"><input id="radius" type="range" min="1000" max="20000" step="1000" value="10000"></input></div>
         <span id="radius-value"></span>
-    </div>
-    <div>
-        <label>Cover</label><input id="coverage" type="range" min="0" max="1" step="0.1" value="1"></input>
-        <span id="coverage-value"></span>
-    </div>
-    <div>
-        <label>Upper</label><input id="upperPercentile" type="range" min="90" max="100" step="1" value="100"></input>
-        <span id="upperPercentile-value"></span>
     </div>
     <br>
     <div>
         <label class="radio-inline">
-            <input type="radio" name="optradio " checked>Wage
+            <input type="radio" id="radio-wage" name="radios" checked>Wage
         </label>
         <label class="radio-inline">
-            <input type="radio" name="optradio">Ratio
+            <input type="radio" id="radio-ratio" name="radios">Ratio
         </label>
         <label class="radio-inline">
-            <input type="radio" name="optradio">Sentiment
+            <input type="radio" id="radio-sentiment" name="radios">Sentiment
         </label>
     </div>
     <br>
@@ -188,7 +169,7 @@
 
     let data = null;
 
-    const OPTIONS = ['radius', 'coverage', 'upperPercentile'];
+    const OPTIONS = ['radius'];
 
     const COLOR_RANGE = [
         [1, 152, 189],
@@ -223,7 +204,10 @@
         const hexagonLayer = new HexagonLayer({
             id: 'heatmap',
             colorRange: COLOR_RANGE,
-            getColorValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
+            getColorValue: points => {
+                pp = points.filter(p => filter(p));
+                return pp.map(p => getCheckedValue(p)).reduce((p, c) => p + c, 0) / pp.length
+            },
             //getElevationValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
             data,
             elevationRange: [0, 1000],
@@ -243,18 +227,39 @@
         });
     }
 
+    function filter(p) {
+        if (document.getElementById('radio-ratio').checked && p.cost === null) {
+            return false;
+        } else return !(document.getElementById('radio-sentiment').checked && p.sentiment === null);
+    }
+
+    function getCheckedValue(p) {
+        let v;
+        if (document.getElementById('radio-wage').checked) {
+            v = p.wage;
+        } else if (document.getElementById('radio-ratio').checked) {
+            v = p.wage - 60000 * (Math.tanh(parseFloat(p.cost) - 100.0));
+        } else {
+            v = p.sentiment;
+        }
+
+        return v;
+    }
+
     function updateTooltip(info) {
         const tooltip = document.getElementById('tooltip');
+        const isWage = document.getElementById('radio-wage').checked;
+        const isSentiment = document.getElementById('radio-sentiment').checked;
 
         if (info.object) {
             const [count, top] = aggregateTooltipPoints(info.object.points);
             tooltip.style.top = `${info.y}px`;
             tooltip.style.left = `${info.x}px`;
             tooltip.innerHTML = `
-<div><b>${info.object.points[0].city}</b></div>
-<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>
-<div><div>Count: ${count}</div></div>
-<div><div>${createJobsString(top)}</div></div>`;
+<div><b>${info.object.points[0].city}</b></div><hr>
+<div><b>Avg:</b>&ensp;<div class='right'>${isSentiment ? '' : '$'}${Math.round(info.object.colorValue)}</div></div>
+<div><b>Count:</b>&ensp;<div class='right'>${count}</div></div><hr>
+<div>${isWage ? createJobsString(top) : ''}</div>`;
 
         } else {
             tooltip.innerHTML = '';
@@ -277,7 +282,7 @@
     function createJobsString(jobs) {
         let s = '';
         for (let i = 0; i < jobs.length; i++) {
-            s += `<div>${clean(jobs[i].job_title)}: $${jobs[i].wage}</div>`;
+            s += `<div>${clean(jobs[i].job_title)}:&ensp;<div class='right'>$${jobs[i].wage}</div></div>`;
         }
         return s;
     }
@@ -286,13 +291,8 @@
         return str.replace(/[^a-z-A-Z ]/g, "").replace(/ +/, " ")
     }
 
-    function updateClickTooltip(info) {
-        const tooltip = document.getElementById('tooltipClick');
-    }
-
     document.getElementById('container').addEventListener('contextmenu', (evt) => {
         evt.preventDefault();
-        document.getElementById('tooltipClick').style.display = 'none';
     });
 
     function processData(rawData) {
@@ -304,7 +304,9 @@
                     wage: d.average_salary,
                     city: d._id,
                     top: d.jobs || [d.job],
-                    applications: d.applications
+                    applications: d.applications,
+                    cost: d.cost_of_living || null,
+                    sentiment: d.sentiment || null
                 };
             });
     }
@@ -313,9 +315,10 @@
         let sum = 0, min = Number.MAX_VALUE, max = Number.MIN_VALUE, count = 0, n = 0;
 
         processedData.forEach(dp => {
-            sum += dp.wage;
-            if (dp.wage < min) min = dp.wage;
-            if (dp.wage > max) max = dp.wage;
+            const p = getCheckedValue(dp);
+            sum += p;
+            if (p < min) min = p;
+            if (p > max) max = p;
             count += dp.applications;
             n++
         });
@@ -354,8 +357,8 @@
         });
     }
 
-    show('loading', false);
-    //sendRequestAndUpdate('All', getSOC('All', null), null);
+    //show('loading', false);
+    sendRequestAndUpdate('VA', getSOC('All', null), null);
 
     function show(id, value) {
         document.getElementById(id).style.display = value ? 'block' : 'none';
