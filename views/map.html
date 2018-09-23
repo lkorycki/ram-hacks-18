@@ -45,7 +45,7 @@
             border: none;
             color: white;
             padding: 15px 32px;
-            margin: 20px 50px;
+            margin: 15px 50px;
             text-align: center;
             text-decoration: none;
             display: inline-block;
@@ -69,6 +69,20 @@
         }
 
         #tooltip {
+             font-family: Helvetica, Arial, sans-serif;
+             font-size: 11px;
+             position: absolute;
+             padding: 4px;
+             margin: 8px;
+             background: rgba(0, 0, 0, 0.8);
+             color: #fff;
+             max-width: 300px;
+             font-size: 10px;
+             z-index: 9;
+             pointer-events: none;
+         }
+
+        #tooltipClick {
             font-family: Helvetica, Arial, sans-serif;
             font-size: 11px;
             position: absolute;
@@ -100,7 +114,10 @@
 </head>
 
 <body>
+<div id="container" style="width: 100vw; height: 100vh;"></div>
 <div id="tooltip"></div>
+<div id="tooltipClick"></div>
+
 <div id="loading"></div>
 <div id="control-panel">
     <div>
@@ -131,11 +148,15 @@
     </div>
 </div>
 </body>
+
 <script src="js/selectData.js"></script>
+<script src="js/companyData.js"></script>
+
 <script type="text/javascript">
     const {DeckGL, HexagonLayer} = deck;
 
     const deckgl = new DeckGL({
+        container: 'container',
         mapboxApiAccessToken: 'pk.eyJ1Ijoia29yeWNraWwiLCJhIjoiY2ptNXZjNm80MGpjZDNvbnpyYzY1NDR2NCJ9.KPYKaHdVL9wvXsj5U38eiA',
         mapStyle: 'mapbox://styles/mapbox/dark-v9',
         longitude: -71.0812,
@@ -184,7 +205,7 @@
             id: 'heatmap',
             colorRange: COLOR_RANGE,
             getColorValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
-            getElevationValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
+            //getElevationValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
             data,
             elevationRange: [0, 1000],
             elevationScale: 50,
@@ -193,7 +214,8 @@
             lightSettings: LIGHT_SETTINGS,
             opacity: 0.1,
             pickable: true,
-            onHover: info => updateTooltip(info), //info => console.log('Hovered: ', info.lngLat, info.object.colorValue), //
+            onHover: info => updateTooltip(info),
+            onClick: info => updateClickTooltip(info),
             ...options
         });
 
@@ -208,11 +230,47 @@
         if (info.object) {
             tooltip.style.top = `${info.y}px`;
             tooltip.style.left = `${info.x}px`;
-            tooltip.innerHTML = `\n<div><b>${info.object.points[0].city}</b></div>\n<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>\n`;
+            tooltip.innerHTML = `
+<div><b>${info.object.points[0].city}</b></div>
+<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>`;
         } else {
             tooltip.innerHTML = '';
         }
     }
+
+    function aggregateTooltipPoints(points) {
+        let count = 0;
+        let jobs = [];
+
+        for (let i = 0; i < points.length; i++) {
+            const p = points[i];
+            count += p.applications;
+            jobs.concat(p.jobs);
+        }
+
+        //jobs.
+
+
+    }
+
+    function updateClickTooltip(info) {
+        const tooltip = document.getElementById('tooltipClick');
+        tooltip.style.display = 'block';
+        tooltip.style.top = `${info.y}px`;
+        tooltip.style.left = `${info.x}px`;
+
+        console.log(info.object.points);
+        tooltip.innerHTML = `<ul>
+    <li><a href="">link1</a></li>
+    <li><a href="">link2</a></li>
+    <li><a href="">link3</a></li>
+</ul>`;
+    }
+
+    document.getElementById('container').addEventListener('contextmenu', (evt) => {
+        evt.preventDefault();
+        document.getElementById('tooltipClick').style.display = 'none';
+    });
 
     function processData(rawData) {
         return rawData.filter((d) => (d.longitude != null) && (d.latitude != null) && (d.average_salary != null))
@@ -221,52 +279,56 @@
                 return {
                     coordinates: [Number(d.longitude), Number(d.latitude)],
                     wage: d.average_salary,
-                    city: d._id
+                    city: d._id,
+                    applications: d.applications,
+                    top: d.jobs,
                 };
             });
     }
 
     function updateStatistics(processedData) {
-        let sum = 0, min = Number.MAX_VALUE, max = Number.MIN_VALUE, count = 0;
+        let sum = 0, min = Number.MAX_VALUE, max = Number.MIN_VALUE, count = 0, n = 0;
 
         processedData.forEach(dp => {
             sum += dp.wage;
             if (dp.wage < min) min = dp.wage;
             if (dp.wage > max) max = dp.wage;
-            count++;
+            count += dp.applications;
+            n++
         });
 
-        const avg = sum / count;
+        const avg = sum / n;
         document.getElementById('avg').textContent = `$${Math.round(avg)}`;
         document.getElementById('max').textContent = `$${Math.round(max)}`;
         document.getElementById('min').textContent = `$${Math.round(min)}`;
         document.getElementById('count').textContent = `${count}`;
     }
 
-
     function sendRequestAndUpdate(state, code, company) {
+        let url;
         if (company === null) {
-            const url = 'http://104.251.219.173:5000/api/'+ state + "/" + code;
-            console.log('Sending request for: ' + url);
-            show('loading', true);
-            $.ajax({
-                url: url,
-                type: 'GET',
-                crossDomain: true,
-                dataType: 'json',
-                success: function(rawData) {
-                    console.log('Data received');
-                    data = processData(rawData);
-                    renderLayer();
-                    updateStatistics(data);
-                    console.log('Updated');
-                    show('loading', false);
-                },
-                error: function(e) { alert('Failed! ' + JSON.stringify(e)); }
-            });
+            url = 'http://104.251.219.173:5000/api/'+ state + "/" + code;
         } else {
-
+            url = 'http://104.251.219.173:5000/api/' + state + "/" + code + '/employer?employer=' + company;
         }
+
+        console.log('Sending request for: ' + url);
+        show('loading', true);
+        $.ajax({
+            url: url,
+            type: 'GET',
+            crossDomain: true,
+            dataType: 'json',
+            success: function(rawData) {
+                console.log('Data received');
+                data = processData(rawData);
+                renderLayer();
+                updateStatistics(data);
+                console.log('Updated');
+                show('loading', false);
+            },
+            error: function(e) { alert('Failed! ' + JSON.stringify(e)); }
+        });
     }
 
     //show('loading', false);
@@ -285,20 +347,18 @@
         sendRequestAndUpdate(state, getSOC(domain, job), company);
     };
 
-    let domainSelect = document.getElementById("domain");
-    const fields = getFields();
-    domainSelect.options[0] = new Option('All', 0);
-    domainSelect.selectedIndex = 0;
-    for(const field in fields) {
-        domainSelect.options[domainSelect.options.length] = new Option(fields[field], field);
+    function createSelect(name, data) {
+        let select = document.getElementById(name);
+        select.options[0] = new Option('All', 0);
+        for(const d in data) {
+            select.options[select.options.length] = new Option(data[d], d);
+        }
+        select.selectedIndex = 0;
     }
 
-    let stateSelect = document.getElementById("state");
-    const states = getStates();
-    for(const state in states) {
-        stateSelect.options[stateSelect.options.length] = new Option(states[state], state);
-    }
-    stateSelect.selectedIndex = 0;
+    createSelect("domain", getFields());
+    createSelect("state", getStates());
+    createSelect("company", getCompanies());
 
     function selectUpdate() {
         let field = getTextFromSelect("domain");
