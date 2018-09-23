@@ -26,6 +26,7 @@
             font-size: 12px;
             line-height: 1.5;
             z-index: 1;
+            border-radius: 15px;
         }
 
         label {
@@ -48,7 +49,7 @@
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 16px;
+            font-size: 14px;
             border-radius: 15px;
         }
 
@@ -94,6 +95,7 @@
             background-repeat: no-repeat;
             background-position: center;
         }
+
     </style>
 </head>
 
@@ -114,11 +116,13 @@
         <label>Upper</label><input id="upperPercentile" type="range" min="90" max="100" step="1" value="100"></input>
         <span id="upperPercentile-value"></span>
     </div>
+    <br>
     <div>
         <label>State:</label><select id="state" class="select"></select><br>
         <label>Domain:</label><select id="domain" class="select" onchange="selectUpdate()"></select><br>
         <label>Job:</label><select id="job" class="select"></select><br>
-        <label>Company:</label><select id="company" class="select"></select><br><br>
+        <label>Company:</label><select id="company" class="select"></select><br>
+        <br>
         <label>Average:</label><label id="avg">-</label><br>
         <label>Maximum:</label><label id="max">-</label><br>
         <label>Minimum:</label><label id="min">-</label><br>
