@@ -106,6 +106,17 @@
             float: right;
         }
 
+        .layout {
+            display: table;
+            width: 100%;
+        }
+
+        .legend {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+        }
+
     </style>
 </head>
 
@@ -116,6 +127,8 @@
 
 <div id="loading"></div>
 <div id="control-panel">
+    <div class="layout"><div class="legend" style="background: rgb(1, 152, 189); width: 16.6667%;"></div><div class="legend" style="background: rgb(73, 227, 206); width: 16.6667%;"></div><div class="legend" style="background: rgb(216, 254, 181); width: 16.6667%;"></div><div class="legend" style="background: rgb(254, 237, 177); width: 16.6667%;"></div><div class="legend" style="background: rgb(254, 173, 84); width: 16.6667%;"></div><div class="legend" style="background: rgb(209, 55, 78); width: 16.6667%;"></div></div>
+    <p class="layout"><span class="col-1-2">Low</span><span class="right">High</span></p>
     <div>
         <label>Radius</label><div class="slider"><input id="radius" type="range" min="1000" max="20000" step="1000" value="10000"></input></div>
         <span id="radius-value"></span>
@@ -205,7 +218,8 @@
             colorRange: COLOR_RANGE,
             getColorValue: points => {
                 pp = points.filter(p => filter(p));
-                return pp.map(p => getCheckedValue(p)).reduce((p, c) => p + c, 0) / pp.length
+                //console.log()
+                return pp.map(p => getCheckedValue(p)).reduce((p, c) => p + c, 0.0) / pp.length
             },
             //getElevationValue: points => points.map(p => p.wage).reduce((p, c) => p + c, 0) / points.length,
             data,
@@ -256,7 +270,7 @@
             tooltip.style.left = `${info.x}px`;
             tooltip.innerHTML = `
 <div><b>${info.object.points[0].city}</b></div><hr>
-<div><b>Avg:</b>&ensp;<div class='right'>${isSentiment ? '' : '$'}${Math.round(info.object.colorValue)}</div></div>
+<div><b>Avg:</b>&ensp;<div class='right'>${isSentiment ? '' : '$'}${Math.round(info.object.colorValue)}${isSentiment ? '%' : ''}</div></div>
 <div><b>Count:</b>&ensp;<div class='right'>${count}</div></div><hr>
 <div>${isWage ? createJobsString(top) : ''}</div>`;
 
@@ -297,7 +311,7 @@
     function processData(rawData) {
         return rawData.filter((d) => (d.longitude != null) && (d.latitude != null) && (d.average_salary != null))
             .map((d) => {
-                //console.log(JSON.stringify(d));
+                //console.log(JSON.stringify(d.sentiment));
                 return {
                     coordinates: [Number(d.longitude), Number(d.latitude)],
                     wage: d.average_salary,
@@ -305,7 +319,7 @@
                     top: d.jobs || [d.job],
                     applications: d.applications,
                     cost: d.cost_of_living || null,
-                    sentiment: d.sentiment || null
+                    sentiment: 100*d.sentiment || null
                 };
             });
     }
@@ -372,18 +386,18 @@
         sendRequestAndUpdate(state, getSOC(domain, job), company);
     };
 
-    function createSelect(name, data) {
+    function createSelect(name, data, start) {
         let select = document.getElementById(name);
         select.options[0] = new Option('All', 0);
         for(const d in data) {
             select.options[select.options.length] = new Option(data[d], d);
         }
-        select.selectedIndex = 0;
+        select.selectedIndex = start;
     }
 
-    createSelect("domain", getFields());
-    createSelect("state", getStates());
-    createSelect("company", getCompanies());
+    createSelect("domain", getFields(), 0);
+    createSelect("state", getStates(), 53);
+    createSelect("company", getCompanies(), 0);
 
     function selectUpdate() {
         let field = getTextFromSelect("domain");
