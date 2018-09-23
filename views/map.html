@@ -35,6 +35,13 @@
             text-align: left;
         }
 
+        .radio-inline {
+            display: inline-block;
+            align-items: center;
+            width: auto;
+            padding: 5px;
+        }
+
         .slider {
             display: inline-block;
             align-items: center;
@@ -135,6 +142,18 @@
     </div>
     <br>
     <div>
+        <label class="radio-inline">
+            <input type="radio" name="optradio " checked>Wage
+        </label>
+        <label class="radio-inline">
+            <input type="radio" name="optradio">Ratio
+        </label>
+        <label class="radio-inline">
+            <input type="radio" name="optradio">Sentiment
+        </label>
+    </div>
+    <br>
+    <div>
         <label>State:</label><select id="state" class="select"></select><br>
         <label>Domain:</label><select id="domain" class="select" onchange="selectUpdate()"></select><br>
         <label>Job:</label><select id="job" class="select"></select><br>
@@ -228,11 +247,15 @@
         const tooltip = document.getElementById('tooltip');
 
         if (info.object) {
+            const [count, top] = aggregateTooltipPoints(info.object.points);
             tooltip.style.top = `${info.y}px`;
             tooltip.style.left = `${info.x}px`;
             tooltip.innerHTML = `
 <div><b>${info.object.points[0].city}</b></div>
-<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>`;
+<div><div>Avg: $${Math.round(info.object.colorValue)}</div></div>
+<div><div>Count: ${count}</div></div>
+<div><div>${createJobsString(top)}</div></div>`;
+
         } else {
             tooltip.innerHTML = '';
         }
@@ -245,26 +268,26 @@
         for (let i = 0; i < points.length; i++) {
             const p = points[i];
             count += p.applications;
-            jobs.concat(p.jobs);
+            jobs = jobs.concat(p.top);
         }
 
-        //jobs.
+        return [count, jobs.sort((a,b) =>  b.wage - a.wage).slice(0,10)];
+    }
 
+    function createJobsString(jobs) {
+        let s = '';
+        for (let i = 0; i < jobs.length; i++) {
+            s += `<div>${clean(jobs[i].job_title)}: $${jobs[i].wage}</div>`;
+        }
+        return s;
+    }
 
+    function clean(str) {
+        return str.replace(/[^a-z-A-Z ]/g, "").replace(/ +/, " ")
     }
 
     function updateClickTooltip(info) {
         const tooltip = document.getElementById('tooltipClick');
-        tooltip.style.display = 'block';
-        tooltip.style.top = `${info.y}px`;
-        tooltip.style.left = `${info.x}px`;
-
-        console.log(info.object.points);
-        tooltip.innerHTML = `<ul>
-    <li><a href="">link1</a></li>
-    <li><a href="">link2</a></li>
-    <li><a href="">link3</a></li>
-</ul>`;
     }
 
     document.getElementById('container').addEventListener('contextmenu', (evt) => {
@@ -280,8 +303,8 @@
                     coordinates: [Number(d.longitude), Number(d.latitude)],
                     wage: d.average_salary,
                     city: d._id,
-                    applications: d.applications,
-                    top: d.jobs,
+                    top: d.jobs || [d.job],
+                    applications: d.applications
                 };
             });
     }
@@ -306,7 +329,7 @@
 
     function sendRequestAndUpdate(state, code, company) {
         let url;
-        if (company === null) {
+        if (company === null || company === 'All') {
             url = 'http://104.251.219.173:5000/api/'+ state + "/" + code;
         } else {
             url = 'http://104.251.219.173:5000/api/' + state + "/" + code + '/employer?employer=' + company;
@@ -331,8 +354,8 @@
         });
     }
 
-    //show('loading', false);
-    sendRequestAndUpdate('VA', getSOC('Computer and Mathematical Occupations', null), null);
+    show('loading', false);
+    //sendRequestAndUpdate('All', getSOC('All', null), null);
 
     function show(id, value) {
         document.getElementById(id).style.display = value ? 'block' : 'none';
